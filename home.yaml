@@ -1,0 +1,69 @@
+services:
+  nginx-proxy:
+    networks:
+      - proxy
+    image: 'docker.io/jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+      - "./nginx:/etc/nginx/vhost.d:ro"
+    environment:
+      DB_POSTGRES_HOST: 'db'
+      DB_POSTGRES_PORT: '5432'
+      DB_POSTGRES_USER: 'npm'
+      DB_POSTGRES_PASSWORD: 'npmpass'
+      DB_POSTGRES_NAME: 'npm'
+    depends_on:
+      - db
+
+  db:
+    image: postgres:latest
+    networks:
+      - proxy
+    environment:
+      POSTGRES_USER: 'npm'
+      POSTGRES_PASSWORD: 'npmpass'
+      POSTGRES_DB: 'npm'
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  adguardhome:
+    image: adguard/adguardhome
+    container_name: adguardhome
+    networks:
+      - proxy
+    ports:
+      - 53:53/tcp # plain dns over tcp
+      - 53:53/udp # plain dns over udp
+      - 90:80/tcp # http web interface
+      - 3001:3000/tcp # initial setup web interface
+    volumes:
+      - /opt/AdGuardHome/conf:/opt/adguardhome/conf # app configuration
+      - /opt/AdGuardHome/work:/opt/adguardhome/work # app working directory
+      
+  portainer:
+    image: portainer/portainer-ce:2.0.0
+    command: -H unix:///var/run/docker.sock
+    restart: always
+    networks:
+      - proxy
+    environment:
+      - VIRTUAL_HOST=p.archerfamily.io
+      - VIRTUAL_PORT=9000
+    ports:
+      - 8000:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+networks:
+  proxy:
+
+volumes:
+  portainer_data:
